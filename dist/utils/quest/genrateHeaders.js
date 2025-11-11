@@ -1,8 +1,8 @@
-function generateHeaders(token, options) {
+export function generateHeaders(token, options) {
     const headers = {
         'accept': options?.accept || '*/*',
         'accept-language': options?.acceptLanguage || 'en,en-US;q=0.9,ar;q=0.8',
-        "authorization": token.trim(),
+        'authorization': token.trim(),
         'priority': 'u=1, i',
         'sec-ch-ua': '"Chromium";v="124", "Google Chrome";v="124", "Not-A.Brand";v="99"',
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; WOW64) AppleWebKit/537.36 (KHTML, like Gecko) discord/1.0.9044 Chrome/120.0.6099.291 Electron/28.2.10 Safari/537.36',
@@ -12,15 +12,13 @@ function generateHeaders(token, options) {
         'sec-fetch-mode': 'cors',
         'sec-fetch-site': 'same-origin',
         'x-discord-locale': 'en-US',
-        'x-super-properties': generateSuperProperties(),
+        'x-super-properties': options?.superProperties || generateSuperProperties(),
         "content-type": "application/json"
     };
-    if (options?.superProperties) {
-        headers['x-super-properties'] = options?.superProperties;
-    }
     return headers;
 }
-function generateSuperProperties() {
+
+export function generateSuperProperties() {
     const superProperties = {
         os: "Windows",
         browser: "Chrome",
@@ -38,8 +36,6 @@ function generateSuperProperties() {
         client_event_source: null,
         design_id: 0
     };
-    const base64Encoded = btoa(JSON.stringify(superProperties));
-    return base64Encoded;
+
+    return Buffer.from(JSON.stringify(superProperties)).toString("base64");
 }
-;
-export { generateHeaders };
