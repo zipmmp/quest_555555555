@@ -6,14 +6,29 @@ import moment from "moment-timezone";
 import { capitalizeWords, disableComponents, formatDiscordTimestamp } from "../../utils/tools.js";
 import { client } from "../../index.js";
 import ms from "ms";
-const levels = [{ level: 1, months: 0, emoji: "boost_level_1", }, { level: 2, months: 2, emoji: "boost_level_2", }, { level: 3, months: 3, emoji: "boost_level_3", }, { level: 4, months: 6, emoji: "boost_level_4", }, { level: 5, months: 9, emoji: "boost_level_5", }, { level: 6, months: 12, emoji: "boost_level_6", }, { level: 7, months: 15, emoji: "boost_level_7", }, { level: 8, months: 18, emoji: "boost_level_8", }, { level: 9, months: 24, emoji: "boost_level_9", },];
-export default class setLang extends SlashCommand {
+
+const levels = [
+    { level: 1, months: 0, emoji: "boost_level_1" },
+    { level: 2, months: 2, emoji: "boost_level_2" },
+    { level: 3, months: 3, emoji: "boost_level_3" },
+    { level: 4, months: 6, emoji: "boost_level_4" },
+    { level: 5, months: 9, emoji: "boost_level_5" },
+    { level: 6, months: 12, emoji: "boost_level_6" },
+    { level: 7, months: 15, emoji: "boost_level_7" },
+    { level: 8, months: 18, emoji: "boost_level_8" },
+    { level: 9, months: 24, emoji: "boost_level_9" },
+];
+
+export default class BoostCommand extends SlashCommand {
     constructor() {
         super(...arguments);
         this.name = "boost";
         this.description = "Show the boost level calculator";
         this.options = [
-            new SlashCommandUserOption().setRequired(false).setName("member").setDescription("account"),
+            new SlashCommandUserOption()
+                .setRequired(false)
+                .setName("member")
+                .setDescription("account"),
         ];
         this.cooldown = "1m";
         this.allowedRoles = [];
@@ -24,62 +39,104 @@ export default class setLang extends SlashCommand {
         this.bot_permissions = [];
         this.flags = ["ephemeral", "onlyDm", "onlyGuild"];
     }
+
     async execute({ interaction, client, i18n, lang }) {
         if (!selfUser) {
-            return interaction.editReply({ embeds: [new EmbedBuilder().setDescription(i18n.t("boost.botNotReady")).setColor("DarkRed")] });
+            return interaction.editReply({
+                embeds: [new EmbedBuilder()
+                    .setDescription(i18n.t("boost.botNotReady"))
+                    .setColor("DarkRed")]
+            });
         }
-        ;
-        const guild = questsConfig.serverId.includes(interaction.guildId) ? interaction.guild : client.guilds.cache.get(questsConfig.serverId);
+
+        const guild = questsConfig.serverId.includes(interaction.guildId)
+            ? interaction.guild
+            : client.guilds.cache.get(questsConfig.serverId);
+
         const user = guild && (interaction.options.getUser("member") || interaction.user) || null;
-        const member = user && await guild.members.fetch(user.id).catch((err) => null);
-        if (!member)
-            return interaction.editReply({ embeds: [new EmbedBuilder().setDescription(i18n.t("boost.memberNotFound")).setColor("DarkRed")] });
-        const userProfile = (await selfUser.api.get(`users/${member.user.id}/profile`).catch((err) => null))?.data;
-        if (!userProfile)
-            return interaction.editReply({ embeds: [new EmbedBuilder().setDescription(i18n.t("boost.userProfileNotFound")).setColor("DarkRed")] });
-        if (!userProfile?.premium_guild_since)
-            return interaction.editReply({ embeds: [new EmbedBuilder().setDescription(i18n.t("boost.noActiveBoost")).setColor("DarkRed")] });
+        const member = user && await guild.members.fetch(user.id).catch(() => null);
+
+        if (!member) {
+            return interaction.editReply({
+                embeds: [new EmbedBuilder()
+                    .setDescription(i18n.t("boost.memberNotFound"))
+                    .setColor("DarkRed")]
+            });
+        }
+
+        const userProfile = (await selfUser.api.get(`users/${member.user.id}/profile`).catch(() => null))?.data;
+
+        if (!userProfile) {
+            return interaction.editReply({
+                embeds: [new EmbedBuilder()
+                    .setDescription(i18n.t("boost.userProfileNotFound"))
+                    .setColor("DarkRed")]
+            });
+        }
+
+        if (!userProfile?.premium_guild_since) {
+            return interaction.editReply({
+                embeds: [new EmbedBuilder()
+                    .setDescription(i18n.t("boost.noActiveBoost"))
+                    .setColor("DarkRed")]
+            });
+        }
+
         const boostDate = moment(userProfile.premium_guild_since).toDate();
         const color = "#BE7AB7";
-        let commandConfig = {
-            targetLevel: -1,
-        };
-        // @ts-ignore
-        const message = await interaction.editReply({ ...genratePayLoad(i18n, boostDate, user, commandConfig.targetLevel, color) });
-        // @ts-ignore
-        if (message.components[0].components[0].disabled)
-            return;
-        const collecter = message.createMessageComponentCollector({ filter: (i) => i.user.id === interaction.user.id, time: ms("5m") });
-        collecter.on("collect", async (i) => {
-            if (!i.isStringSelectMenu())
-                return;
+        const commandConfig = { targetLevel: -1 };
+
+        const message = await interaction.editReply({
+            ...generatePayload(i18n, boostDate, user, commandConfig.targetLevel, color)
+        });
+
+        if (message.components[0].components[0].disabled) return;
+
+        const collector = message.createMessageComponentCollector({
+            filter: (i) => i.user.id === interaction.user.id,
+            time: ms("5m")
+        });
+
+        collector.on("collect", async (i) => {
+            if (!i.isStringSelectMenu()) return;
+
             const selected = i.values[0];
             commandConfig.targetLevel = parseInt(selected);
-            // @ts-ignore
-            await i.update({ ...genratePayLoad(i18n, boostDate, user, commandConfig.targetLevel, color) });
+
+            await i.update(generatePayload(i18n, boostDate, user, commandConfig.targetLevel, color));
         });
-        collecter.on("end", async () => {
-            const reply = await interaction.fetchReply().catch((err) => null);
-            if (!reply)
-                return;
-            interaction.editReply({ components: disableComponents(reply.components), }).catch((err) => null);
+
+        collector.on("end", async () => {
+            const reply = await interaction.fetchReply().catch(() => null);
+            if (!reply) return;
+
+            interaction.editReply({
+                components: disableComponents(reply.components),
+            }).catch(() => null);
         });
     }
 }
-function genratePayLoad(i18n, boostDate, author, targetLevelNumber, color) {
+
+function generatePayload(i18n, boostDate, author, targetLevelNumber, color) {
     const months = moment().diff(boostDate, "months");
-    const sortedLevels = levels.sort((a, b) => b.months - a.months);
+    const sortedLevels = [...levels].sort((a, b) => b.months - a.months);
     const boostLevel = sortedLevels.find((l) => l.months <= months);
     const nextLevel = sortedLevels.reverse().find((l) => l.months > months);
-    const targetLevel = targetLevelNumber !== -1 ? sortedLevels.reverse().find((l) => l.level === targetLevelNumber) : nextLevel;
-    const higherBoostLevels = sortedLevels.filter((l) => l.level > boostLevel.level).sort((a, b) => a.months - b.months);
+    const targetLevel = targetLevelNumber !== -1
+        ? sortedLevels.reverse().find((l) => l.level === targetLevelNumber)
+        : nextLevel;
+
+    const higherBoostLevels = sortedLevels.filter((l) => l.level > boostLevel.level)
+        .sort((a, b) => a.months - b.months);
+
     const menu = new StringSelectMenuBuilder()
         .setMaxValues(1)
         .setMinValues(1)
         .setCustomId("boost_level")
         .setPlaceholder(i18n.t("boost.selectBoostLevel"));
+
     if (higherBoostLevels.length > 0) {
-        for (const level of higherBoostLevels) {
+        higherBoostLevels.forEach((level) => {
             menu.addOptions({
                 label: `${level.months} ${capitalizeWords(i18n.t("months"))}`,
                 emoji: client.getEmoji(level?.emoji, false) || "⭐",
@@ -87,9 +144,8 @@ function genratePayLoad(i18n, boostDate, author, targetLevelNumber, color) {
                 default: level?.level === targetLevel?.level || false,
                 description: i18n.t("boost.boostLevelAfter", { level: level.level, months: level.months })
             });
-        }
-    }
-    else {
+        });
+    } else {
         menu.addOptions({
             label: i18n.t("boost.maxLevel"),
             emoji: client.getEmoji(boostLevel?.emoji, false) || "⭐",
@@ -99,28 +155,32 @@ function genratePayLoad(i18n, boostDate, author, targetLevelNumber, color) {
         });
         menu.setDisabled(true);
     }
-    ;
+
     const currentLevel = {
         emoji: boostLevel?.emoji && client.getEmoji(boostLevel?.emoji, false) || "⭐",
         level: boostLevel.level,
         months: boostLevel.months,
     };
-    const nextLevelData = {
+
+    const nextLevelData = nextLevel ? {
         emoji: nextLevel?.emoji && client.getEmoji(nextLevel?.emoji, false) || "⭐",
-        level: nextLevel?.level,
-        months: nextLevel?.months,
-        nextLevelDate: nextLevel && moment(boostDate).add(nextLevel.months, "months").toDate(),
-    };
-    const targetLevelData = {
+        level: nextLevel.level,
+        months: nextLevel.months,
+        nextLevelDate: moment(boostDate).add(nextLevel.months, "months").toDate(),
+    } : null;
+
+    const targetLevelData = targetLevel ? {
         emoji: targetLevel?.emoji && client.getEmoji(targetLevel?.emoji, false) || "⭐",
-        level: targetLevel?.level,
-        months: targetLevel?.months,
-        targetLevelDate: targetLevel && moment(boostDate).add(targetLevel.months, "months").toDate(),
-    };
-    let embedDescription = ``;
+        level: targetLevel.level,
+        months: targetLevel.months,
+        targetLevelDate: moment(boostDate).add(targetLevel.months, "months").toDate(),
+    } : null;
+
+    let embedDescription = "";
     embedDescription += `- **${i18n.t("boost.boostLevel")} ${currentLevel.level}** ${currentLevel.emoji}\n`;
     embedDescription += `-# -  ${i18n.t("boost.boostLevel")} ${formatDiscordTimestamp(boostDate.getTime(), "Date")}\n`;
     embedDescription += `-# -  ${i18n.t("boost.boostingStreak")}: \`${months}\` Months\n\n`;
+
     if (nextLevel) {
         embedDescription += `- **${i18n.t("boost.nextLevel")} ${nextLevelData.level}** ${nextLevelData.emoji}\n`;
         embedDescription += `-# - ${i18n.t("boost.nextLevelDate")} ${formatDiscordTimestamp(nextLevelData.nextLevelDate.getTime(), "Date")}\n`;
@@ -130,12 +190,20 @@ function genratePayLoad(i18n, boostDate, author, targetLevelNumber, color) {
             embedDescription += `-# - ${i18n.t("boost.targetLevelDate")} ${formatDiscordTimestamp(targetLevelData.targetLevelDate.getTime(), "Date")}\n`;
             embedDescription += `-# - ${i18n.t("boost.TargetLevelIn")}: ${formatDiscordTimestamp(targetLevelData.targetLevelDate.getTime(), "R")}\n\n`;
         }
-    }
-    else {
+    } else {
         embedDescription += `- **${i18n.t("boost.reachedMaxBoost")}** ${currentLevel.emoji}\n\n`;
     }
+
     embedDescription += `-# -  **${i18n.t("boost.developed")}**\n`;
-    const embed = new EmbedBuilder().setDescription(embedDescription).setThumbnail(author.displayAvatarURL()).setAuthor({ name: author.tag, iconURL: author.displayAvatarURL() }).setColor(`#${color.replace("#", "").trim()}`).setFooter({ text: i18n.t("boost.boostLevelCalculator"), iconURL: client.user.avatarURL() || undefined }).setImage("https://k.top4top.io/p_3343xcnvn1.png");
+
+    const embed = new EmbedBuilder()
+        .setDescription(embedDescription)
+        .setThumbnail(author.displayAvatarURL())
+        .setAuthor({ name: author.tag, iconURL: author.displayAvatarURL() })
+        .setColor(color)
+        .setFooter({ text: i18n.t("boost.boostLevelCalculator"), iconURL: client.user.avatarURL() || undefined })
+        .setImage("https://k.top4top.io/p_3343xcnvn1.png");
+
     return {
         components: [new ActionRowBuilder().addComponents(menu)],
         embeds: [embed],
