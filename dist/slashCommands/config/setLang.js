@@ -1,9 +1,10 @@
-import { ActionRowBuilder, StringSelectMenuBuilder, } from "discord.js";
+import { ActionRowBuilder, StringSelectMenuBuilder } from "discord.js";
 import { SlashCommand } from "../../lib/quest/handler/slashCommand.js";
 import GuildDocument from "../../entities/guildSettings.js";
 import { i18n as mainI18n } from "../../providers/i18n.js";
 import { EmbedBuilder } from "../../lib/quest/handler/embedBuilder.js";
 import { userSettingsRepo } from "../../core/cache.js";
+
 export default class setLang extends SlashCommand {
     constructor() {
         super(...arguments);
@@ -19,6 +20,7 @@ export default class setLang extends SlashCommand {
         this.bot_permissions = [];
         this.flags = ["onlyGuild", "ephemeral", "onlyDm"];
     }
+
     buildLangMenu(i18n, lang, interactionId) {
         const langs = mainI18n.getAvailableLanguages();
         const langMenu = new StringSelectMenuBuilder()
@@ -26,6 +28,7 @@ export default class setLang extends SlashCommand {
             .setMaxValues(1)
             .setMinValues(1)
             .setPlaceholder(i18n.t("setlang.selectLangPlaceholder"));
+
         langs.forEach(language => {
             langMenu.addOptions({
                 label: language.name,
@@ -34,14 +37,17 @@ export default class setLang extends SlashCommand {
                 emoji: language.flag ? { name: language.flag } : undefined,
             });
         });
+
         return new ActionRowBuilder().addComponents(langMenu);
     }
-    async awaitLangSelection(interaction, langMenu) {
-        const filter = (i) => i.customId.startsWith("langSelect_") && i.user.id === interaction.user.id;
+
+    async awaitLangSelection(interaction) {
+        const filter = i => i.customId.startsWith("langSelect_") && i.user.id === interaction.user.id;
         return (await interaction.channel
             ?.awaitMessageComponent({ filter, time: this.client.clientMs("60s") })
             .catch(() => null));
     }
+
     async updateLangSetting(interaction, i18n, selectedLang) {
         const updatedI18n = mainI18n.get(selectedLang);
         await interaction.editReply({
@@ -50,8 +56,10 @@ export default class setLang extends SlashCommand {
         });
         return updatedI18n;
     }
-    async execute({ interaction, client, i18n, lang, }) {
+
+    async execute({ interaction, client, i18n, lang }) {
         const isDM = interaction.channel?.isDMBased();
+
         if (isDM) {
             // Handle user settings
             const user = interaction.user;
@@ -62,24 +70,27 @@ export default class setLang extends SlashCommand {
                 await userSettingsRepo.save(userDoc);
             }
             client.userSettings.tempSet(user.id, userDoc, client.clientMs("30m"));
+
             const langMenu = this.buildLangMenu(i18n, lang, interaction.id);
             await interaction.editReply({ components: [langMenu] });
-            const collected = await this.awaitLangSelection(interaction, langMenu);
+
+            const collected = await this.awaitLangSelection(interaction);
             if (!collected) {
                 return interaction.editReply({
                     components: [new ActionRowBuilder().addComponents(langMenu.components[0].setDisabled(true))],
                 });
             }
+
             collected.deferUpdate();
             const selectedLang = collected.values[0];
             userDoc.lang = selectedLang;
             await userSettingsRepo.save(userDoc);
             await this.updateLangSetting(interaction, i18n, selectedLang);
-        }
-        else {
+        } else {
             // Handle guild settings
             const guild = interaction.guild;
             const repo = this.appDataSource.getRepo(GuildDocument);
+
             let guildDoc = client.guildSettings.get(guild.id);
             if (!guildDoc) {
                 guildDoc =
@@ -87,14 +98,17 @@ export default class setLang extends SlashCommand {
                 await repo.save(guildDoc);
                 client.guildSettings.set(guild.id, guildDoc);
             }
+
             const langMenu = this.buildLangMenu(i18n, lang, interaction.id);
             await interaction.editReply({ components: [langMenu] });
-            const collected = await this.awaitLangSelection(interaction, langMenu);
+
+            const collected = await this.awaitLangSelection(interaction);
             if (!collected) {
                 return interaction.editReply({
                     components: [new ActionRowBuilder().addComponents(langMenu.components[0].setDisabled(true))],
                 });
             }
+
             collected.deferUpdate();
             const selectedLang = collected.values[0];
             guildDoc.lang = selectedLang;
