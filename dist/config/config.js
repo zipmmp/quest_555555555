@@ -1,6 +1,6 @@
 import { SupportedDatabaseTypes } from "../core/databaseConfig.js";
 const config = {
-    token: ".",
+    token: "",
     embedColor: "#06c2fb",
     defaultLanguage: "en",
     debugMode: true,
